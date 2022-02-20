@@ -11,14 +11,15 @@ namespace rbg {
 struct SimResult {
   std::vector<unsigned long> sum_goals;
   unsigned long nodes_count, sim_count;
+  bool moves_limit_exceeded;
 
-  SimResult(uint players_count) : nodes_count(0), sim_count(0) {
+  SimResult(uint players_count) : nodes_count(0), sim_count(0), moves_limit_exceeded(false) {
     sum_goals.resize(players_count, 0);
   }
 };
 
 SimResult RandomSimulations(GameState &state, uint sim_count,
-                            unsigned long seed) {
+                            unsigned long seed, uint depth_limit, uint moves_limit) {
   RBGRandomGenerator rng(seed);
   std::vector<variable_id_t> player_variable_ids;
   uint players_count = state.declarations().players_resolver().size() - 1;
@@ -30,13 +31,20 @@ SimResult RandomSimulations(GameState &state, uint sim_count,
   SimResult result(players_count);
   for (uint i = 0; i < sim_count; i++) {
     uint depth = 0;
-    while (true) {
+    while (depth < depth_limit) {
       auto moves = state.Moves();
-      if (moves.size() == 0)
+      if (moves.size() == 0 || moves.size() > moves_limit)
         break;
       uint chosen_move = rng.uniform_choice(moves.size());
       state.Apply(moves[chosen_move]);
       depth++;
+    }
+    if (depth >= depth_limit) {
+      continue;
+    }
+    if (state.Moves().size() > moves_limit) {
+      result.moves_limit_exceeded = true;
+      return result;
     }
     result.nodes_count += depth;
     result.sim_count++;
